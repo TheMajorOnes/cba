@@ -4,9 +4,14 @@ import sys
 import requests
 import mimetypes
 import tiktoken
+import time
+import pydantic
+
+startingTime = time.perf_counter()
 
 MAX_CHUNK_SIZE = 20 * 1024
 IGNORED_FOLDERS = [".git", "__pycache__", ".idea", ".vscode", ".DS_Store", ".pytest_cache", "node_modules", "venv", "env"]
+IGNORED_FILES = ["README.md", "LICENSE", ".gitignore", ".env", ".jar", ".zip", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".7z", ".rar",".png", ".jpg", ".jpeg", ".gif", ".bmp", ".svg", ".ico", ".webp", ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".mp3", ".wav", ".ogg", ".flac", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"]
 
 # TODO: implement folder level reading to reduce token count on large folders
 
@@ -16,6 +21,11 @@ def getTokenCount(text): # NOTE: estimation, not exact. might switch to huggingf
     return len(tokens)
 
 def isText(path):
+    # Check ignored file extensions
+    for ext in IGNORED_FILES:
+        if path.endswith(ext):
+            return False
+
     mime, _ = mimetypes.guess_type(path)
     if mime and mime.startswith("text"):
         return True
@@ -64,6 +74,15 @@ def buildMessage(instruction, prompt, chunks):
     messages.append({"role": "user", "content": "User prompt: " + prompt.strip()})
     return messages
 
+def startTimer():
+    global startingTime
+    startingTime = time.perf_counter()
+
+def getElapsedTime():
+    global startingTime
+    elapsedTime = time.perf_counter() - startingTime
+    return elapsedTime
+
 def main():
     parser = argparse.ArgumentParser(description="Send files + prompt to Ollama LLM with chunking")
     parser.add_argument("model", help="Ollama Model name")
@@ -89,12 +108,14 @@ def main():
 
     print("Token count:", getTokenCount(str(request_payload)))
 
-    response = requests.post("http://192.168.50.100:11434/v1/chat/completions", json=request_payload)   # TODO: use env or arg
+    startTimer()
+    response = requests.post("https://ollama.themajorones.dev/v1/chat/completions", json=request_payload)   # TODO: use env or arg
     response.raise_for_status()
     response_json = response.json()
     answer = response_json["choices"][0]["message"]["content"]
+    elapsedTime = getElapsedTime()
 
-    print("\n>> Response:\n", answer)
+    print("\n>> Response took :\n", elapsedTime, "seconds \n", answer)
 
 if __name__ == "__main__":
     main()
